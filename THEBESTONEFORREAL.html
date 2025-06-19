@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Yearly Calendar</title>
+    <style>
+        /* --- General Styles & Layout --- */
+        :root {
+            --primary-bg: #f5f5f5;
+            --secondary-bg: #ffffff;
+            --text-color: #000000;
+            --text-color-inverted: #ffffff;
+            --text-color-muted: #888888;
+            --border-color: #dddddd;
+            --accent-color: #bbbbbb;
+            --today-bg-color: #e5e5e5; 
+            /* UPDATED: New variable for the goal highlight color */
+            --has-goals-bg-color: #e0f2fe; /* Light Blue */
+        }
+
+        body {
+            font-family: "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--primary-bg);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        #app-container {
+            max-width: 1200px;
+            margin: auto;
+            background: var(--secondary-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        button {
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            background-color: var(--secondary-bg);
+            padding: 8px 12px;
+            border-radius: 5px;
+            transition: background-color 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            background-color: #f0f0f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        /* --- App Header --- */
+        #main-header {
+            padding: 25px 20px;
+            border-bottom: 1px solid var(--border-color);
+            text-align: center;
+        }
+        
+        #app-title {
+            margin: 0;
+            font-size: 2.2em;
+            font-weight: 300;
+            letter-spacing: 1px;
+            color: #333;
+        }
+
+        #app-blurb {
+            margin: 10px auto 0;
+            padding: 8px;
+            max-width: 80%;
+            font-style: italic;
+            color: var(--text-color-muted);
+            border: 1px solid transparent;
+            border-radius: 4px;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+
+        #app-blurb:focus {
+            outline: none;
+            font-style: normal;
+            border-color: var(--accent-color);
+            background-color: #fafafa;
+        }
+
+        #app-blurb:empty::before {
+            content: 'Click here to add a description for your system...';
+            cursor: text;
+        }
+        
+        /* --- Calendar View --- */
+        .view { padding: 20px; }
+        
+        #calendar-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; padding: 15px 20px;
+            background-color: var(--secondary-bg);
+            color: var(--text-color);
+        }
+
+        #calendar-header h2 { margin: 0; font-size: 1.8em; }
+
+        #calendar-header button {
+            background: transparent;
+            border: 1px solid var(--text-color);
+            color: var(--text-color);
+            font-size: 1.5em; line-height: 1;
+        }
+
+        #calendar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+        .month-container { border: 1px solid var(--border-color); border-radius: 5px; padding: 10px; }
+        .month-header { text-align: center; font-weight: bold; margin-bottom: 10px; }
+        .days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .day-cell, .weekday-header { display: flex; justify-content: center; align-items: center; height: 30px; font-size: 0.8em; border-radius: 3px; }
+        .weekday-header { font-weight: bold; color: var(--text-color-muted); }
+        .day-cell:not(.empty) { cursor: pointer; border: 1px solid transparent; transition: background-color 0.2s, border-color 0.2s; }
+        .day-cell:not(.empty):hover { background-color: #f0f0f0; border-color: var(--accent-color); }
+        
+        /* UPDATED: New highlight style for days with goals */
+        .day-cell.has-goals {
+            background-color: var(--has-goals-bg-color);
+        }
+
+        /* This rule comes AFTER .has-goals so it takes precedence on today's date */
+        .day-cell.today { 
+            background-color: var(--today-bg-color); 
+            color: var(--text-color); 
+            font-weight: bold; 
+        }
+        
+        /* REMOVED: The old ::after dot styles are no longer needed. */
+
+        /* --- Daily View --- */
+        #daily-view { display: none; }
+        .daily-view-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        #daily-view-date { margin: 0; font-size: 1.5em; }
+        #add-goals-form { margin-bottom: 20px; }
+        #add-goals-form textarea {
+            width: 100%; min-height: 80px; padding: 10px; border-radius: 5px;
+            border: 1px solid var(--border-color); box-sizing: border-box;
+            margin-bottom: 10px; resize: vertical;
+        }
+        #goal-list, #completed-goal-list { list-style: none; padding: 0; margin: 0; }
+        #completed-list-container { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-color); }
+        .goal-item {
+            display: flex; align-items: center; padding: 12px;
+            background-color: #fafafa; border: 1px solid var(--border-color);
+            border-radius: 5px; margin-bottom: 8px; transition: box-shadow 0.2s;
+        }
+        #goal-list .goal-item { cursor: grab; }
+        .goal-item.dragging { opacity: 0.5; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .goal-item input[type="checkbox"] { margin-right: 12px; cursor: pointer; transform: scale(1.2); }
+        .goal-item-text { flex-grow: 1; transition: color 0.2s; }
+        .goal-item.completed .goal-item-text { text-decoration: line-through; color: var(--text-color-muted); }
+        .delete-goal-btn {
+            background: none; border: none; font-size: 1.2em; color: #aaaaaa;
+            margin-left: 15px; opacity: 0.5; transition: color 0.2s, opacity 0.2s;
+        }
+        .goal-item:hover .delete-goal-btn { opacity: 1; }
+        .delete-goal-btn:hover { color: var(--text-color); }
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <div id="main-header">
+            <h1 id="app-title">My Goal System</h1>
+            <p id="app-blurb" contenteditable="true"></p>
+        </div>
+
+        <div id="calendar-view" class="view">
+            <div id="calendar-header">
+                <button id="prev-year-btn"><</button>
+                <h2 id="current-year">2024</h2>
+                <button id="next-year-btn">></button>
+            </div>
+            <div id="calendar-grid"></div>
+        </div>
+
+        <div id="daily-view" class="view">
+            <div class="daily-view-header">
+                <h2 id="daily-view-date">Date</h2>
+                <button id="back-to-calendar-btn">← Back to Year</button>
+            </div>
+            <form id="add-goals-form">
+                <textarea id="goal-input" placeholder="Add goals for this day... (one per line)"></textarea>
+                <button type="submit">Add Goals</button>
+            </form>
+            <h3>Goals for this day:</h3>
+            <ul id="goal-list"></ul>
+            <div id="completed-list-container">
+                <h3>Completed Items:</h3>
+                <ul id="completed-goal-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        let currentYear = new Date().getFullYear();
+        let selectedDate = null;
+        let goals = {}; 
+
+        const appBlurb = document.getElementById('app-blurb');
+        const calendarView = document.getElementById('calendar-view');
+        const dailyView = document.getElementById('daily-view');
+        const currentYearEl = document.getElementById('current-year');
+        const calendarGrid = document.getElementById('calendar-grid');
+        const prevYearBtn = document.getElementById('prev-year-btn');
+        const nextYearBtn = document.getElementById('next-year-btn');
+        const dailyViewDateEl = document.getElementById('daily-view-date');
+        const backToCalendarBtn = document.getElementById('back-to-calendar-btn');
+        const addGoalsForm = document.getElementById('add-goals-form');
+        const goalInput = document.getElementById('goal-input');
+        const goalList = document.getElementById('goal-list');
+        const completedListContainer = document.getElementById('completed-list-container');
+        const completedGoalList = document.getElementById('completed-goal-list');
+
+        const saveGoals = () => localStorage.setItem('calendarGoals', JSON.stringify(goals));
+        const loadGoals = () => {
+            const savedGoals = localStorage.getItem('calendarGoals');
+            if (savedGoals) goals = JSON.parse(savedGoals);
+        };
+        const saveBlurb = () => localStorage.setItem('calendarBlurb', appBlurb.innerText);
+        const loadBlurb = () => {
+            const savedBlurb = localStorage.getItem('calendarBlurb');
+            if (savedBlurb) appBlurb.innerText = savedBlurb;
+        };
+        
+        const showCalendarView = () => {
+            dailyView.style.display = 'none';
+            calendarView.style.display = 'block';
+            renderCalendar(currentYear);
+        };
+        const showDailyView = (dateStr) => {
+            selectedDate = dateStr;
+            calendarView.style.display = 'none';
+            dailyView.style.display = 'block';
+            const date = new Date(dateStr + 'T00:00:00');
+            dailyViewDateEl.textContent = date.toLocaleDateString('en-US', {
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+            });
+            renderGoalsForDay();
+        };
+
+        const renderCalendar = (year) => {
+            currentYearEl.textContent = year;
+            calendarGrid.innerHTML = '';
+            const today = new Date();
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            for (let month = 0; month < 12; month++) {
+                const monthContainer = document.createElement('div');
+                monthContainer.className = 'month-container';
+                const firstDayOfMonth = new Date(year, month, 1);
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const monthName = firstDayOfMonth.toLocaleString('default', { month: 'long' });
+                monthContainer.innerHTML = `<div class="month-header">${monthName}</div>`;
+                const daysGrid = document.createElement('div');
+                daysGrid.className = 'days-grid';
+                const weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+                weekdays.forEach(day => { daysGrid.innerHTML += `<div class="weekday-header">${day}</div>`; });
+                for (let i = 0; i < firstDayOfMonth.getDay(); i++) {
+                    daysGrid.innerHTML += '<div class="day-cell empty"></div>';
+                }
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const dayCell = document.createElement('div');
+                    dayCell.className = 'day-cell';
+                    dayCell.textContent = day;
+                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    dayCell.dataset.date = dateStr;
+                    if (dateStr === todayStr) dayCell.classList.add('today');
+                    if (goals[dateStr] && goals[dateStr].length > 0) dayCell.classList.add('has-goals');
+                    dayCell.addEventListener('click', () => showDailyView(dateStr));
+                    daysGrid.appendChild(dayCell);
+                }
+                monthContainer.appendChild(daysGrid);
+                calendarGrid.appendChild(monthContainer);
+            }
+        };
+
+        const renderGoalsForDay = () => {
+            goalList.innerHTML = '';
+            completedGoalList.innerHTML = '';
+            const dayGoals = goals[selectedDate] || [];
+            const activeGoals = dayGoals.filter(goal => !goal.completed);
+            const completedGoals = dayGoals.filter(goal => goal.completed);
+
+            if (activeGoals.length === 0) {
+                goalList.innerHTML = '<p>No active goals. Add some!</p>';
+            } else {
+                activeGoals.forEach(goal => {
+                    const originalIndex = dayGoals.indexOf(goal);
+                    goalList.appendChild(createGoalElement(goal, originalIndex));
+                });
+            }
+            if (completedGoals.length === 0) {
+                completedListContainer.style.display = 'none';
+            } else {
+                completedListContainer.style.display = 'block';
+                completedGoals.forEach(goal => {
+                    const originalIndex = dayGoals.indexOf(goal);
+                    completedGoalList.appendChild(createGoalElement(goal, originalIndex));
+                });
+            }
+        };
+        const createGoalElement = (goal, index) => {
+            const li = document.createElement('li');
+            li.className = 'goal-item';
+            li.dataset.index = index;
+            if (goal.completed) li.classList.add('completed');
+            li.innerHTML = `
+                <input type="checkbox" ${goal.completed ? 'checked' : ''}>
+                <span class="goal-item-text">${goal.text}</span>
+                <button class="delete-goal-btn" title="Delete goal">🗑️</button>
+            `;
+            li.querySelector('input[type="checkbox"]').addEventListener('change', (e) => {
+                goals[selectedDate][index].completed = e.target.checked;
+                saveGoals();
+                renderGoalsForDay();
+            });
+            li.querySelector('.delete-goal-btn').addEventListener('click', () => {
+                goals[selectedDate].splice(index, 1);
+                if (goals[selectedDate].length === 0) delete goals[selectedDate];
+                saveGoals();
+                renderGoalsForDay();
+            });
+            if (!goal.completed) {
+                li.setAttribute('draggable', 'true');
+                li.addEventListener('dragstart', handleDragStart);
+                li.addEventListener('dragend', handleDragEnd);
+            }
+            return li;
+        };
+
+        let dragSrcElement = null;
+        function handleDragStart(e) { this.classList.add('dragging'); dragSrcElement = this; }
+        function handleDragEnd(e) { this.classList.remove('dragging'); }
+        goalList.addEventListener('dragover', e => {
+            e.preventDefault();
+            const target = e.target.closest('.goal-item');
+            if (target && target !== dragSrcElement) {
+                const rect = target.getBoundingClientRect();
+                const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > .5;
+                goalList.insertBefore(dragSrcElement, next && target.nextSibling || target);
+            }
+        });
+        goalList.addEventListener('drop', e => {
+            e.preventDefault();
+            const newOrder = Array.from(goalList.querySelectorAll('.goal-item')).map(item => goals[selectedDate][parseInt(item.dataset.index)]);
+            const completedGoals = goals[selectedDate].filter(g => g.completed);
+            goals[selectedDate] = [...newOrder, ...completedGoals];
+            saveGoals();
+            renderGoalsForDay();
+        });
+
+        prevYearBtn.addEventListener('click', () => { currentYear--; renderCalendar(currentYear); });
+        nextYearBtn.addEventListener('click', () => { currentYear++; renderCalendar(currentYear); });
+        backToCalendarBtn.addEventListener('click', showCalendarView);
+        addGoalsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const newGoals = goalInput.value.split('\n').map(text => ({ text: text.trim(), completed: false })).filter(goal => goal.text);
+            if (newGoals.length > 0) {
+                if (!goals[selectedDate]) goals[selectedDate] = [];
+                goals[selectedDate].push(...newGoals);
+                saveGoals();
+                renderGoalsForDay();
+                goalInput.value = '';
+            }
+        });
+        appBlurb.addEventListener('blur', saveBlurb);
+
+        loadBlurb();
+        loadGoals();
+        renderCalendar(currentYear);
+    });
+    </script>
+</body>
+</html>
